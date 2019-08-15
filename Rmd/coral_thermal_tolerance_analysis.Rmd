@@ -1,6 +1,8 @@
 ---
 title: "Coral Thermal Tolerance Genes Analysis"
 output: html_notebook
+editor_options: 
+  chunk_output_type: inline
 ---
 sangeranalyseR tutorial
 
@@ -204,7 +206,10 @@ rs.cat$readsets
 rs.cat$read.summaries
 ```
 
+New code chunk
+```{r}
 
+```
 
 
 
