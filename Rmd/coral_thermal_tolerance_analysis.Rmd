@@ -1,0 +1,186 @@
+---
+title: "Coral Thermal Tolerance Genes Analysis"
+output: html_notebook
+---
+sangeranalyseR tutorial
+
+```{r}
+suppressMessages(library("sangeranalyseR"))
+
+```
+Loading the read:
+```{r}
+COI_37.seq.filepath = "~/OneDrive - UC Davis/Summer 2019/coral_thermotolerance/Data/1637633/COI_37_LAH002_Plate_PCR_00001457_H04.ab1"
+COI_37.abif = read.abif(COI_37.seq.filepath)
+COI_37.seq.sanger = sangerseq(COI_37.abif)
+```
+Trim the reads:
+```{r}
+trims = trim.mott(COI_37.abif)
+trims
+```
+Compare untrimmed with trimmed reads:
+```{r}
+seq.untrimmed = COI_37.abif@data$PBAS.2
+seq.trimmed = substring(seq.untrimmed, trims$start, trims$finish) 
+seq.untrimmed
+seq.trimmed
+```
+Modifying trimming severity:
+You can control the severity of the trimming using the trim.cutoff argument. Smaller numbers indicate more severe trimming. E.g. using a cutoff of 0.1 will trim many fewer low quality bases than the default cutoff of 0.0001:
+```{r}
+trims = trim.mott(COI_37.abif, cutoff = 0.01)
+trims
+```
+View summary data:
+```{r}
+sa = summarise.abi.file(COI_37.abif)
+sa$summary
+
+```
+Summary for a whole folder:
+```{r}
+sf = summarise.abi.folder("~/OneDrive - UC Davis/Summer 2019/coral_thermotolerance/Data/1637633/")
+sf$summaries
+```
+One way to merge reads:
+```{r}
+fwd_COI_86 = readsangerseq("~/OneDrive - UC Davis/Summer 2019/coral_thermotolerance/Data/1637633/COI_86_LAH001_Plate_PCR_00001457_F10.ab1")
+rev_COI_86 = readsangerseq("~/OneDrive - UC Davis/Summer 2019/coral_thermotolerance/Data/1637633/COI_86_LAH002_Plate_PCR_00001457_F10.ab1")
+
+fwd_COI_86 = primarySeq(fwd_COI_86)
+rev_COI_86 = primarySeq(rev_COI_86)
+rev_comp_COI_86 = reverseComplement(rev_COI_86)
+
+reads = DNAStringSet(c(as.character(fwd_COI_86), as.character(rev_comp_COI_86)))
+names(reads) = c('fwd', 'rev')
+
+merged.reads = merge.reads(reads)
+names(merged.reads)
+merged.reads
+
+
+BrowseSeqs(merged.reads$alignment)
+merged.reads$secondary.peak.columns
+
+```
+To see data frame of differences between each read and the consensus as well as the characters in each read that did not contribute to the consensus:
+```{r}
+merged.reads$differences
+```
+
+Resolving possible frameshifts with a reference amino acid sequence from GenBank (AYJ31766.1)
+
+```{r}
+ref.seq = "GTLYFLFGIWSGLLGRSFSFLIRTELSQPGSFLGNDQLYNTIVTRHGFIIIFFFVMPIIIGGFGNWLIPL
+ILRAPDIAFPRINNIRFWLLPPSLLLLLTSSLIESGTGTGWTLYPPLSDRLAHRRKRVDLTIFSLHLAGA
+SSILGAINFITTMINLRSKGMKIDHISLLCWSILLTAILLLLSLPVLAGAITILLTDRNLNTSFFDVSGG
+GDPILMQGLF"
+
+# Choose genetic code from this table:
+GENETIC_CODE_TABLE
+
+# Invert mitochondrial genetic code
+inv.mito.code = getGeneticCode('SGC4', full.search = T)
+
+merged.reads = merge.reads(reads, ref.aa.seq = ref.seq, genetic.code = inv.mito.code)
+BrowseSeqs(merged.reads$alignment)
+
+```
+Readset building with regex.
+```{r}
+fwd_COI_reads = "_LAH001_Plate_PCR_00001457_[[:upper:]]\\d\\d.ab1"
+rev_COI_reads = "_LAH002_Plate_PCR_00001457_[[:upper:]]\\d\\d.ab1"
+
+input.folder = "~/OneDrive - UC Davis/Summer 2019/coral_thermotolerance/Data/1637633/"
+rs = make.readsets(input.folder, fwd_COI_reads, rev_COI_reads)
+rs$readsets
+rs$read.summaries
+```
+###Visual exploration of data
+Plot timmed length vs raw mean quality:
+```{r}
+library(ggplot2)
+class(rs$read.summaries)
+
+ggplot(rs$read.summaries, aes(y = trimmed.length, x = raw.mean.quality)) +
+      geom_point()
+```
+
+
+Running make.consensus.seqs:
+```{r}
+
+cs = make.consensus.seqs(input.folder, fwd_COI_reads, rev_COI_reads, trim = TRUE, trim.cutoff = 0.001) 
+cs_default = make.consensus.seqs(input.folder, fwd_COI_reads, rev_COI_reads)
+
+cs_liberal_filtering = make.consensus.seqs(input.folder, fwd_COI_reads, rev_COI_reads, trim = TRUE, trim.cutoff = 0.01) 
+
+```
+Compare summaries:
+```{r}
+cs.read.summary = cs$read.summaries
+
+cs.def.read.summary = cs_default$read.summaries
+
+cs.lib.read.summary = cs_liberal_filtering$read.summaries
+
+length(cs.read.summary$read.included.in.consensus[cs.read.summary$read.included.in.consensus==TRUE])
+
+length(cs.read.summary$read.included.in.readset[cs.read.summary$read.included.in.readset==TRUE])
+
+length(cs.lib.read.summary$read.included.in.readset[cs.lib.read.summary$read.included.in.readset==TRUE])
+
+```
+Look at the aligned sequences
+
+```{r}
+BrowseSeqs(cs$consensus.alignment)
+BrowseSeqs(cs_default$consensus.alignment)
+BrowseSeqs(cs_liberal_filtering$consensus.alignment)
+```
+Writing FASTA files:
+NOTE: 8/14/2019: Need to resolve ambiguities based on the the traces of forward and reverse reads. Files generated with the word "preliminary" because ambiguities need to be resolved.
+```{r}
+write.dna(cs_liberal_filtering$consensus.sequences, file = "~/OneDrive - UC Davis/Summer 2019/coral_thermotolerance/Data/consensus_sequences.fasta", format = 'fasta', nbcol = -1, colsep = "", colw = 10000000)
+```
+
+Resolving sequence ambiguity:
+Goal: Improve COI database search by resolving degerenate base calls
+
+###Sample 23: ID'ed as Galaxea fascicularis
+COI sequence matches Galaxea fascicularis with 100% identity.
+Other species matches include G. astreata (100%)
+```{r}
+seq.filepath.23.f = "~/OneDrive - UC Davis/Summer 2019/coral_thermotolerance/Data/1637633/COI_23_LAH001_Plate_PCR_00001457_D03.ab1"
+
+seq.filepath.23.r = "~/OneDrive - UC Davis/Summer 2019/coral_thermotolerance/Data/1637633/COI_23_LAH002_Plate_PCR_00001457_D03.ab1"
+
+seq.abif.23.f= read.abif(seq.filepath.23.f)
+seq.abif.23.r= read.abif(seq.filepath.23.r)
+
+seq.sanger.23.f = sangerseq(seq.abif.23.f)
+seq.sanger.23.r = sangerseq(seq.abif.23.r)
+
+sp.23.f = secondary.peaks(seq.sanger.23.f)
+sp.23.r = secondary.peaks(seq.sanger.23.r)
+
+sp.23.f$secondary.peaks
+sp.23.r$secondary.peaks
+
+sp.23.f$read
+sp.23.r$read
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
