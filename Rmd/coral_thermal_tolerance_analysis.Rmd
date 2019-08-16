@@ -194,6 +194,9 @@ input.folder = "~/OneDrive - UC Davis/Summer 2019/coral_thermotolerance/Data/163
 rs.nfkb = make.readsets(input.folder, fwd_NFkB_reads, rev_NFkB_reads)
 rs.nfkb$readsets
 rs.nfkb$read.summaries
+
+nfkb.cs = make.consensus.seqs(input.folder, fwd_NFkB_reads, rev_NFkB_reads, trim = TRUE, trim.cutoff = 0.001)
+BrowseSeqs(nfkb.cs$consensus.alignment)
 ```
 ##Catalase
 ```{r}
@@ -204,9 +207,12 @@ input.folder = "~/OneDrive - UC Davis/Summer 2019/coral_thermotolerance/Data/163
 rs.cat = make.readsets(input.folder, fwd_cat_reads, rev_cat_reads)
 rs.cat$readsets
 rs.cat$read.summaries
+
+cat.cs = make.consensus.seqs(input.folder, fwd_cat_reads, rev_cat_reads, trim = TRUE, trim.cutoff = 0.001)
+BrowseSeqs(cat.cs$consensus.alignment)
 ```
 
-New code chunk
+
 ```{r}
 
 ```
